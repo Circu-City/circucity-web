@@ -1,0 +1,6 @@
+ALTER TABLE `Product`
+  MODIFY COLUMN `condition` ENUM('NEW', 'LIKE_NEW', 'REFURBISHED', 'GOOD', 'FAIR', 'POOR') NOT NULL DEFAULT 'NEW',
+  ADD COLUMN `aiRawResponse` JSON NULL,
+  ADD COLUMN `aiSuggestedPriceSek` INTEGER NULL,
+  ADD COLUMN `aiAnalyzedAt` DATETIME(3) NULL,
+  ADD COLUMN `attributes` JSON NULL;

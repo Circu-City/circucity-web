@@ -1,0 +1,143 @@
+name: Deploy Next.js to cPanel via FTP
+
+on:
+  push:
+    branches:
+      - master # Change this to your deployment branch if it's not 'main'
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Match your local/server Node.js version
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+
+      - name: Build Next.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run build
+
+      # With Next.js standalone output, we need to deploy the contents of `.next/standalone`
+      # along with the `.next/static` folder and `public` folder.
+      - name: Prepare Deployment Artifacts
+        run: |
+          mkdir -p .deploy
+          
+          # 1. Copy the standalone build output
+          cp -r .next/standalone/. .deploy/
+          
+          # 2. Copy the static assets
+          # The standalone build doesn't include static files by default
+          mkdir -p .deploy/.next/static
+          cp -r .next/static/. .deploy/.next/static/
+          
+          # 3. Copy the public directory
+          cp -r public .deploy/
+          
+          # IMPORTANT FOR CPANEL/CLOUDLINUX:
+          # Cloudlinux NodeJS Selector creates a virtual symlink named "node_modules".
+          # We CANNOT ship a physical "node_modules" folder in our deploy.tar.gz!
+          #
+          # However, Prisma Client forces itself into node_modules/.prisma.
+          # We must package Prisma into a separate safe folder (like _prisma_standalone)
+          # and tell the Next.js server where to find it.
+          
+          mkdir -p .deploy/_prisma_standalone
+          cp -r node_modules/.prisma .deploy/_prisma_standalone/ || true
+          
+          # Remove original duplicate Prisma folder to save ~200MB+ in the archive
+          rm -rf .deploy/node_modules/.prisma || true
+
+          # Remove standalone binary engines (we use engineType="library", so we only need .so.node files)
+          # This saves another ~50-100MB by removing executable binaries that aren't used in production.
+          find .deploy/_prisma_standalone -type f -not -name "*.so.node" -not -name "package.json" -not -name "schema.prisma" -not -name "*.js" -delete || true
+          
+          # We need to tell the Next.js standalone chunks to look for Prisma in the new folder
+          # instead of `node_modules/.prisma`. We'll use a safer find & sed to replace the paths
+          # across all generated code and dependency manifests.
+          find .deploy -type f \( -name "*.js" -o -name "*.nft.json" \) -exec sed -i -e 's|node_modules/\.prisma|_prisma_standalone/\.prisma|g' {} + || true
+          
+          # 5. Create a custom cPanel logger wrapper
+          # Passenger sometimes suppresses Next.js standalone errors. This wrapper ensures
+          # every crash or console.error gets written to stderr.log on the server.
+          cat << 'EOF' > .deploy/cpanel-server.js
+          const fs = require('fs');
+          const path = require('path');
+          
+          const errStream = fs.createWriteStream(path.join(__dirname, 'stderr.log'), { flags: 'a' });
+          const outStream = fs.createWriteStream(path.join(__dirname, 'stdout.log'), { flags: 'a' });
+          
+          process.stdout.write = outStream.write.bind(outStream);
+          process.stderr.write = errStream.write.bind(errStream);
+
+          // Force load the .env file if it exists, since cPanel GUI often fails to pass variables properly
+          try {
+              const envPath = path.join(__dirname, '.env');
+              if (fs.existsSync(envPath)) {
+                  console.log('Found .env file, loading variables into memory...');
+                  const envConfig = fs.readFileSync(envPath, 'utf8');
+                  envConfig.split('\n').forEach(line => {
+                      const trimmedLine = line.trim();
+                      if (trimmedLine && !trimmedLine.startsWith('#') && trimmedLine.includes('=')) {
+                          const separatorIndex = trimmedLine.indexOf('=');
+                          const key = trimmedLine.substring(0, separatorIndex).trim();
+                          let value = trimmedLine.substring(separatorIndex + 1).trim();
+                          
+                          // Remove wrapping quotes if they exist
+                          if (value.startsWith('"') && value.endsWith('"')) {
+                              value = value.substring(1, value.length - 1);
+                          } else if (value.startsWith("'") && value.endsWith("'")) {
+                              value = value.substring(1, value.length - 1);
+                          }
+                          process.env[key] = value;
+                      }
+                  });
+              }
+          } catch (e) {
+              console.error('Failed to parse .env file:', e);
+          }
+          
+          process.on('uncaughtException', (err) => {
+              errStream.write(`[${new Date().toISOString()}] Uncaught Exception: ${err.stack}\n`);
+              process.exit(1);
+          });
+          
+          process.on('unhandledRejection', (reason, promise) => {
+              errStream.write(`[${new Date().toISOString()}] Unhandled Rejection: ${reason}\n`);
+          });
+          
+          // Boot Next.js standalone server
+          require('./server.js');
+          EOF
+          
+      - name: Create Deployment Archive
+        run: |
+          cd .deploy
+          tar -czf ../deploy.tar.gz .
+          cd ..
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Deploy Archive via lftp
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        run: |
+          # Use lftp to upload the single tar.gz file
+          lftp -c "set ssl:verify-certificate no; open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER; put deploy.tar.gz -o circucity_web/deploy.tar.gz"

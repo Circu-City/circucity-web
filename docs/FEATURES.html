@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CircuCity Features</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        h1 { color: #1e3a2f; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+        h2 { color: #2d5a45; margin-top: 2rem; }
+        h3 { color: #4a5568; margin-top: 1.5rem; }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        code { background: #f7fafc; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; }
+        .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: bold; }
+        .badge-green { background: #def7ec; color: #03543f; }
+    </style>
+</head>
+<body>
+    <h1>🌟 CircuCity: Feature Highlights & Roadmap</h1>
+
+    <p>This document outlines the current capabilities of the CircuCity platform and our exciting roadmap for future development.</p>
+
+    <h2>✅ Current Features</h2>
+
+    <h3>🛒 Marketplace Experience</h3>
+    <ul>
+        <li><strong>Eco-Friendly Categories</strong>: Curated selection of sustainable products (Organic Food, Green Gadgets, etc.).</li>
+        <li><strong>Advanced Search & Filtering</strong>: Robust filtering by price, condition, category, and CO2 impact.</li>
+        <li><strong>Persistent Wishlist</strong>: Save favorite items to a personalized wishlist for later purchase.</li>
+        <li><strong>Shopping Cart</strong>: Seamless add-to-cart functionality with item persistence.</li>
+    </ul>
+
+    <h3>🌱 Sustainability Intelligence</h3>
+    <ul>
+        <li><strong>Real-time Carbon Estimation</strong>: Automatic calculation of CO2 emissions saved per product using the <strong>Climatiq API</strong>.</li>
+        <li><strong>Smart Fallback System</strong>: Local estimation logic ensures sustainability data is always available, even if API quotas are reached.</li>
+        <li><strong>Eco-Impact Badges</strong>: Visual indicators (e.g., "Eco-Friendly", "XX kg Saved") to guide conscious purchasing decisions.</li>
+    </ul>
+
+    <h3>🛡️ User Roles & Management</h3>
+    <ul>
+        <li><strong>Buyer Dashboard</strong>: Manage profile, orders, and saved items.</li>
+        <li><strong>Seller Dashboard</strong>: Comprehensive tools for product listing, inventory management, and order tracking.
+        <li><strong>Admin Dashboard</strong>: Powerful moderation tools to approve products, feature items on the homepage, and manage user accounts.</li>
+        <li><strong>Secure Authentication</strong>: Powered by <strong>Clerk</strong> for robust and secure user identity management.</li>
+    </ul>
+
+    <h3>💳 Payments & Logistics (Current)</h3>
+    <ul>
+        <li><strong>Secure Payments</strong>: Integrated <strong>Stripe</strong> checkout for safe, seamless credit card transactions and payouts.</li>
+        <li><strong>Smart Shipping</strong>: <strong>PostNord</strong> integration for real-time shipping rate calculation, label generation, and package tracking directly within the platform.</li>
+    </ul>
+
+    <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #e2e8f0;">
+
+    <h2>🚀 Future Roadmap</h2>
+
+    <h3>🏆 Gamification & Engagement</h3>
+    <ul>
+        <li><strong>Sustainability Leaderboard</strong>: Rank users and sellers based on their total CO2 savings. Introduce badges and rewards for top contributors to the eco-ecosystem.</li>
+        <li><strong>Eco-Tokens</strong>: Earn tokens for every verified sustainable purchase, redeemable for discounts or donations to environmental causes.</li>
+    </ul>
+
+    <h3>📦 Logistics & Validation</h3>
+    <ul>
+        <li><strong>Smart Weight Validation</strong>: Implement AI-driven algorithms to cross-reference product dimensions and materials with historical shipping data to flag potential weight discrepancies before shipping labels are generated.</li>
+        <li><strong>Return Management System</strong>: Streamlined process for eco-friendly returns and recycling of products.</li>
+    </ul>
+
+    <h3>💬 Communication & Community</h3>
+    <ul>
+        <li><strong>In-App Messaging System</strong>: Direct, secure communication channel between buyers and sellers to ask product questions and coordinate details.</li>
+        <li><strong>Community Forum</strong>: A space for users to share sustainability tips, product reviews, and eco-lifestyle advice.</li>
+        <li><strong>Message Queues</strong>: Implement robust message queuing (using Redis or RabbitMQ) to handle high-volume notifications, email dispatch, and background processing reliably.</li>
+    </ul>
+
+    <h3>📊 Analytics & Transparency</h3>
+    <ul>
+        <li><strong>Comprehensive Audit Logs</strong>: Detailed tracking of all critical system actions (product updates, admin interventions) for security and accountability.</li>
+        <li><strong>Advanced Seller Analytics</strong>: Deeper insights for sellers into shop performance, customer demographics, and carbon impact trends.</li>
+    </ul>
+
+    <h3>📱 Performance & Accessibility</h3>
+    <ul>
+        <li><strong>Mobile App Development</strong>: Native mobile experience for iOS and Android.</li>
+        <li><strong>Accessibility Improvements</strong>: Continued focus on WCAG compliance to ensure the platform is usable by everyone.</li>
+    </ul>
+</body>
+</html>

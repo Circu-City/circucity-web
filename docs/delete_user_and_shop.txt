@@ -1,0 +1,21 @@
+-- INSTRUCTIONS: 
+-- Replace 'your-email@example.com' with the actual email of the user you want to delete.
+-- Because of strict database relations, you MUST delete the Shop before you can delete the User.
+
+-- 1. First, delete any Products that belong to the Shop (if they made any)
+DELETE FROM `Product` 
+WHERE `shopId` IN (
+    SELECT id FROM `Shop` WHERE `ownerId` = (
+        SELECT id FROM `User` WHERE email = 'your-email@example.com'
+    )
+);
+
+-- 2. Second, delete the Shop itself
+DELETE FROM `Shop` 
+WHERE `ownerId` = (
+    SELECT id FROM `User` WHERE email = 'your-email@example.com'
+);
+
+-- 3. Finally, delete the User
+DELETE FROM `User` 
+WHERE `email` = 'your-email@example.com';
