@@ -13,13 +13,27 @@ import { ProductSort } from "@/components/products/ProductSort";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { auth } from '@clerk/nextjs/server';
 import { getUserWishlistProductIds } from '@/lib/wishlist';
+import { pageAlternates } from '@/lib/seo';
 
 import { Prisma } from "@prisma/client";
 
-export const metadata: Metadata = {
-    title: "All Products | CircuCity",
-    description: "Browse our collection of eco-friendly, sustainable products.",
-};
+// Paginated pages need their own canonical (/products?page=2 is a distinct
+// page, not a duplicate of /products). Filtered views are duplicates and fold
+// back to the bare listing, and a filter + page combination folds too -- page 2
+// of "Electronics" is not page 2 of everything.
+export async function generateMetadata(props: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
+    const sp = await props.searchParams;
+    const page = Math.max(1, Number(sp.page) || 1);
+    const { page: _p, limit: _l, ...filters } = sp;
+    const hasFilters = Object.values(filters).some((v) => (Array.isArray(v) ? v.length : v));
+    const path = page > 1 && !hasFilters ? `/products?page=${page}` : '/products';
+
+    return {
+        title: page > 1 ? `All Products – Page ${page} | CircuCity` : 'All Products | CircuCity',
+        description: 'Browse our collection of eco-friendly, sustainable products.',
+        alternates: pageAlternates(path),
+    };
+}
 
 interface SearchParams {
     category?: string | string[];

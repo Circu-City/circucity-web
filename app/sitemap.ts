@@ -8,6 +8,7 @@ import { resolveSiteOrigin, SITE_ORIGINS } from '@/lib/seo';
 const STATIC_ROUTES: Array<{ path: string; changeFrequency: 'daily' | 'weekly' | 'monthly'; priority: number }> = [
     { path: '',                     changeFrequency: 'daily',   priority: 1.0 },
     { path: '/products',            changeFrequency: 'daily',   priority: 0.9 },
+    { path: '/shops',               changeFrequency: 'weekly',  priority: 0.8 },
     { path: '/swap',                changeFrequency: 'daily',   priority: 0.8 },
     { path: '/eco-home',            changeFrequency: 'weekly',  priority: 0.7 },
     { path: '/green-gadgets',       changeFrequency: 'weekly',  priority: 0.7 },
