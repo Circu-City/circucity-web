@@ -6,14 +6,23 @@ import { MapPin, Store, Package, Star, Leaf, ShoppingBag } from 'lucide-react';
 import Image from 'next/image';
 import { getProductImages } from '@/lib/utils';
 import { formatPrice } from '@/lib/pricing';
+import { pageAlternates, snippet } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const shop = await prisma.shop.findUnique({ where: { id }, select: { name: true, description: true } });
-  if (!shop) return { title: 'Shop Not Found' };
-  return { title: `${shop.name} — CircuCity`, description: shop.description || `Browse products from ${shop.name}` };
+  // Returning a "Shop Not Found" title here still sent a 200. Throwing notFound()
+  // from generateMetadata is what actually yields a 404 (see products/[id]).
+  if (!shop) notFound();
+  const description = snippet(shop.description) ?? `Browse products from ${shop.name} on CircuCity.`;
+  return {
+    title: `${shop.name} — CircuCity`,
+    description,
+    alternates: pageAlternates(`/shop/${id}`),
+    openGraph: { title: `${shop.name} — CircuCity`, description, url: `/shop/${id}`, type: 'website' },
+  };
 }
 
 export default async function ShopPage({ params }: { params: Promise<{ id: string }> }) {

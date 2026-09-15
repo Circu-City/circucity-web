@@ -13,6 +13,57 @@ import { ViewTracker } from "@/components/analytics/ViewTracker";
 import { formatPrice } from "@/lib/pricing";
 import { getProductImages } from "@/lib/utils";
 import { getComplementaryProducts } from "@/lib/complementary-pairings";
+import type { Metadata } from "next";
+import { pageAlternates, snippet } from "@/lib/seo";
+
+// Two jobs here. First, product pages were inheriting the site-wide title and
+// description from the root layout, so every one of them presented to Google as
+// "CircuCity - Your Destination for Sustainable Living" -- indistinguishable
+// from each other and from the homepage.
+//
+// Second, this is where the 404 has to happen. app/products/loading.tsx is a
+// streaming boundary: the shell is flushed with a 200 before the page body
+// runs, so the notFound() inside ProductPage renders the not-found UI but can
+// no longer change the status code -- a soft 404 for any invented ID.
+// generateMetadata runs before anything streams, so a notFound() thrown here
+// produces a real 404.
+export async function generateMetadata(props: { params: Promise<{ id: string }> }): Promise<Metadata> {
+    const { id } = await props.params;
+
+    const product = await prisma.product.findUnique({
+        where: { id },
+        select: { name: true, description: true, images: true, status: true, category: { select: { name: true } } },
+    });
+
+    if (!product || product.status === 'DRAFT') {
+        notFound();
+    }
+
+    const image = getProductImages(product.images)[0];
+    const title = `${product.name} | CircuCity`;
+    const description =
+        snippet(product.description) ??
+        `Buy ${product.name} second-hand on CircuCity, the sustainable marketplace.`;
+
+    return {
+        title,
+        description,
+        alternates: pageAlternates(`/products/${id}`),
+        openGraph: {
+            title,
+            description,
+            type: 'website',
+            url: `/products/${id}`,
+            ...(image ? { images: [{ url: image, alt: product.name }] } : {}),
+        },
+        twitter: {
+            card: image ? 'summary_large_image' : 'summary',
+            title,
+            description,
+            ...(image ? { images: [image] } : {}),
+        },
+    };
+}
 
 export default async function ProductPage(props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
@@ -79,7 +130,7 @@ export default async function ProductPage(props: { params: Promise<{ id: string 
                     <ChevronRight className="w-4 h-4" />
                     <Link href="/products" className="hover:text-[#2D5F3F] transition-colors">Products</Link>
                     <ChevronRight className="w-4 h-4" />
-                    <span className="hover:text-[#2D5F3F] transition-colors">{product.category.name}</span>
+                    <Link href={`/products?category=${encodeURIComponent(product.category.name)}`} className="hover:text-[#2D5F3F] transition-colors">{product.category.name}</Link>
                     <ChevronRight className="w-4 h-4" />
                     <span className="text-gray-900 font-medium truncate max-w-[200px]">{product.name}</span>
                 </nav>

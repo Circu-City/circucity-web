@@ -13,7 +13,7 @@ const securityHeaders = {
     "X-XSS-Protection": "1; mode=block",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.circucity.com https://*.circucity.ai https://cdn.jsdelivr.net https://js.stripe.com https://accounts.google.com https://*.clerk.com https://clerk.circucity.com; worker-src 'self' blob:; connect-src 'self' https://*.circucity.com https://*.circucity.ai https://api.github.com wss://*.circucity.com; img-src 'self' data: blob: https://*.circucity.com https://*.circucity.ai https://img.clerk.com https://cdn.jsdelivr.net https://images.unsplash.com https://utfs.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://js.stripe.com https://accounts.google.com https://*.clerk.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.circucity.com https://*.circucity.ai https://cdn.jsdelivr.net https://js.stripe.com https://accounts.google.com https://*.clerk.com https://clerk.circucity.com https://challenges.cloudflare.com; worker-src 'self' blob:; connect-src 'self' https://*.circucity.com https://*.circucity.ai https://api.github.com wss://*.circucity.com https://api.cognitive.microsofttranslator.com https://edge.microsoft.com https://api.translate.zvo.cn https://challenges.cloudflare.com; img-src 'self' data: blob: https://*.circucity.com https://*.circucity.ai https://img.clerk.com https://cdn.jsdelivr.net https://images.unsplash.com https://utfs.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://js.stripe.com https://accounts.google.com https://*.clerk.com https://challenges.cloudflare.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'",
 };
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -58,7 +58,14 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(signInUrl);
     }
 
-    const response = NextResponse.next();
+    // Server components can't see the request URL, so generateMetadata in the
+    // root layout had no way to build a per-page canonical and every route fell
+    // back to '/'. Stamp the pathname on the *request* headers (not the response)
+    // so lib/seo.ts can read it via headers().
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set('x-pathname', pathname);
+
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
     Object.entries(securityHeaders).forEach(([key, value]) => {
         response.headers.set(key, value);
     });
