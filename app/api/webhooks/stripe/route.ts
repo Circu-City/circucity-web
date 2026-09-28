@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 import { sendNotification } from '@/lib/notifications';
 import { sendThankYouEmail, sendNewSaleAlertEmail, sendRefundReceiptEmail, sendEcoMilestoneEmail } from '@/lib/email';
 import { calculateShieldFee } from '@/lib/pricing';
+import { consumeReservations, releaseReservations } from '@/lib/inventory';
 
 export async function POST(req: Request) {
     console.log('=== STRIPE WEBHOOK RECEIVED ===');
@@ -41,6 +42,19 @@ export async function POST(req: Request) {
 
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Real inventory is decremented further down, so the hold has to stop counting
+        // or the item is subtracted twice. Done first: if fulfilment throws below, the
+        // hold must not survive. Should this never run, the hold lapses on its own.
+        const reservationId = session.metadata?.reservationId;
+        if (reservationId) {
+            try {
+                const consumed = await consumeReservations(reservationId);
+                console.log(`Consumed ${consumed} inventory reservation(s) for ${reservationId}`);
+            } catch (e: any) {
+                console.error('Failed to consume reservations:', e?.message);
+            }
+        }
 
         console.log('=== CHECKOUT SESSION COMPLETED ===');
         console.log('Session ID:', session.id);
@@ -535,6 +549,22 @@ export async function POST(req: Request) {
                 }
             );
         }
+    }
+
+    // An abandoned checkout returns its stock as soon as Stripe says the session is
+    // dead, rather than sitting held until the TTL lapses.
+    if (event.type === 'checkout.session.expired') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const reservationId = session.metadata?.reservationId;
+        if (reservationId) {
+            try {
+                const released = await releaseReservations(reservationId);
+                console.log(`Released ${released} inventory reservation(s) for expired session ${session.id}`);
+            } catch (e: any) {
+                console.error('Failed to release reservations:', e?.message);
+            }
+        }
+        return NextResponse.json({ received: true });
     }
 
     // Handle refunds

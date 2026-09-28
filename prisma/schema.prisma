@@ -498,3 +498,23 @@ model PlatformSettings {
   @@map("PlatformSettings")
 }
 
+
+/// A short-lived hold on stock taken while a buyer is at the Stripe payment page.
+/// Availability is `Product.inventory` minus the sum of ACTIVE, unexpired rows here.
+/// Deliberately not a Prisma relation to Product: nothing needs to traverse it, and
+/// keeping it standalone avoids adding cascade behaviour to product deletion.
+model CheckoutReservation {
+  id            String   @id @default(cuid())
+  /// Groups every line of one checkout; also written to Stripe session metadata.
+  reservationId String
+  productId     String
+  quantity      Int
+  /// ACTIVE | CONSUMED (payment completed) | RELEASED (session expired or failed)
+  status        String   @default("ACTIVE")
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([productId, status, expiresAt])
+  @@index([reservationId])
+}

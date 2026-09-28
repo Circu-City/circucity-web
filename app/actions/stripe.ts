@@ -7,6 +7,12 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
 import { getProductImages } from '@/lib/utils';
 import { calculateShieldFee } from '@/lib/pricing';
+import { randomUUID } from 'crypto';
+import {
+    reserveInventory,
+    releaseReservations,
+    STRIPE_SESSION_TTL_MS,
+} from '@/lib/inventory';
 
 // Nothing validated a product before a card was charged. Both checkout paths resolved
 // the product and then tested only that it existed, so an item could be bought while
@@ -254,7 +260,21 @@ export async function createCheckoutSession(productId: string) {
     }
     sessionData.automatic_tax = { enabled: true };
 
-    const session = await stripe.checkout.sessions.create(sessionData);
+    // Hold the stock before the buyer can reach a payment page, and expire the session
+    // in step with the hold so an abandoned checkout returns the item quickly.
+    const reservationId = randomUUID();
+    await reserveInventory([{ productId: product.id, quantity: 1 }], reservationId);
+    sessionData.expires_at = Math.floor((Date.now() + STRIPE_SESSION_TTL_MS) / 1000);
+    sessionData.metadata = { ...(sessionData.metadata || {}), reservationId };
+
+    let session;
+    try {
+        session = await stripe.checkout.sessions.create(sessionData);
+    } catch (err) {
+        // Never strand a hold on a session that was never created.
+        await releaseReservations(reservationId);
+        throw err;
+    }
 
     if (session.url) {
         redirect(session.url);
@@ -417,7 +437,18 @@ export async function createCartCheckoutSession(items: { productId: string; quan
     }
     sessionData.automatic_tax = { enabled: true };
 
-    const session = await stripe.checkout.sessions.create(sessionData);
+    const reservationId = randomUUID();
+    await reserveInventory(cartItems, reservationId);
+    sessionData.expires_at = Math.floor((Date.now() + STRIPE_SESSION_TTL_MS) / 1000);
+    sessionData.metadata = { ...(sessionData.metadata || {}), reservationId };
+
+    let session;
+    try {
+        session = await stripe.checkout.sessions.create(sessionData);
+    } catch (err) {
+        await releaseReservations(reservationId);
+        throw err;
+    }
 
     if (session.url) {
         redirect(session.url);
