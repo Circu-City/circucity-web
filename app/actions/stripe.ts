@@ -8,6 +8,65 @@ import prisma from '@/lib/prisma';
 import { getProductImages } from '@/lib/utils';
 import { calculateShieldFee } from '@/lib/pricing';
 
+// Nothing validated a product before a card was charged. Both checkout paths resolved
+// the product and then tested only that it existed, so an item could be bought while
+// DRAFT, SOLD or OUT_OF_STOCK, and any quantity could be bought regardless of stock --
+// inventory is only decremented in the Stripe webhook, which runs after payment, so it
+// went negative. This mirrors the rule the cart UI already applies in
+// /api/cart/stock: sellable means status ACTIVE and enough inventory.
+const MAX_QUANTITY_PER_PRODUCT = 100;
+
+type PurchasableProduct = { id: string; name: string; status: string; inventory: number };
+
+function assertPurchasable<T extends PurchasableProduct>(
+    product: T | null | undefined,
+    quantity: number,
+    productId: string
+): T {
+    if (!product) {
+        throw new Error(`Product ${productId} not found`);
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY_PER_PRODUCT) {
+        throw new Error(
+            `Invalid quantity for "${product.name}". Choose between 1 and ${MAX_QUANTITY_PER_PRODUCT}.`
+        );
+    }
+
+    if (product.status !== 'ACTIVE') {
+        throw new Error(`"${product.name}" is no longer available.`);
+    }
+
+    const available = product.inventory ?? 0;
+    if (available < quantity) {
+        throw new Error(
+            available > 0
+                ? `Only ${available} left of "${product.name}". Please reduce the quantity.`
+                : `"${product.name}" is out of stock.`
+        );
+    }
+
+    return product;
+}
+
+/**
+ * Collapse a cart to one entry per product. Without this a per-line check is
+ * bypassable: ten lines of quantity 1 each pass individually while totalling ten.
+ */
+function aggregateCartItems(
+    items: { productId: string; quantity: number }[]
+): { productId: string; quantity: number }[] {
+    const totals = new Map<string, number>();
+    for (const item of items) {
+        const q = Number(item?.quantity);
+        if (!Number.isFinite(q)) {
+            throw new Error('Invalid quantity in cart.');
+        }
+        totals.set(item.productId, (totals.get(item.productId) ?? 0) + q);
+    }
+    return Array.from(totals, ([productId, quantity]) => ({ productId, quantity }));
+}
+
 /**
  * Ensure user exists in database before checkout
  * This prevents the "blank order" bug for regular buyers
@@ -93,13 +152,11 @@ export async function createCheckoutSession(productId: string) {
         origin = 'http://localhost:3000';
     }
 
-    const product = await prisma.product.findUnique({
+    const foundProduct = await prisma.product.findUnique({
         where: { id: productId },
     });
 
-    if (!product) {
-        throw new Error('Product not found');
-    }
+    const product = assertPurchasable(foundProduct, 1, productId);
 
     // Calculate shipping
     const weight = product.weight || 0;
@@ -231,7 +288,8 @@ export async function createCartCheckoutSession(items: { productId: string; quan
     }
 
     // Fetch all products from DB to verify prices
-    const productIds = items.map(item => item.productId);
+    const cartItems = aggregateCartItems(items);
+    const productIds = cartItems.map(item => item.productId);
     const products = await prisma.product.findMany({
         where: { id: { in: productIds } },
     });
@@ -239,13 +297,16 @@ export async function createCartCheckoutSession(items: { productId: string; quan
     // Create a map for easy lookup
     const productMap = new Map(products.map((p: any) => [p.id, p]));
 
+    // Validate every line before any Stripe object is created, so a rejected cart
+    // never reaches a payment page.
+    for (const item of cartItems) {
+        assertPurchasable(productMap.get(item.productId) as PurchasableProduct | undefined, item.quantity, item.productId);
+    }
+
     let totalWeight = 0;
 
-    const line_items: any[] = items.map(item => {
+    const line_items: any[] = cartItems.map(item => {
         const product: any = productMap.get(item.productId);
-        if (!product) {
-            throw new Error(`Product ${item.productId} not found`);
-        }
 
         // Calculate weight contribution
         totalWeight += ((product as any).weight || 0) * item.quantity;
@@ -277,7 +338,7 @@ export async function createCartCheckoutSession(items: { productId: string; quan
     const shippingName = carrier === "shipmondo" ? "Shipmondo Shipping + Handling" : "PostNord Shipping + Handling";
 
     // Calculate overall Shield Fee based on subtotal
-    const subtotal = items.reduce((acc, item) => {
+    const subtotal = cartItems.reduce((acc, item) => {
         const product: any = productMap.get(item.productId);
         return acc + (Number(product?.price || 0) * item.quantity);
     }, 0);
