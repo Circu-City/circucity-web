@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
@@ -15,115 +9,100 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  BUYER
-  SELLER
-  ADMIN
-}
-
-enum SellerType {
-  PRIVATE
-  BUSINESS
-}
-
 model User {
-  id    String @id // Configured to match Clerk User ID
-  email String @unique
-  role  Role   @default(BUYER)
-
-  // User Profile
-  name          String?
-  image         String?
-  ecoPoints     Int     @default(0)
-  escrowBalance Int     @default(0)
-  totalCo2Saved Float   @default(0.0)
-  lastLoginDate DateTime?
-  referredBy    String?
-
-  // Billing & VAT
-  stripeCustomerId String?  @map("stripe_customer_id")
-  billingName      String?  @map("billing_name")
-  billingAddress   String?  @map("billing_address")
-  billingCity      String?  @map("billing_city")
-  billingPostalCode String? @map("billing_postal_code")
-  billingCountry   String?  @default("SE")  @map("billing_country")
-  businessType     String?  @default("individual") @map("business_type")
-  vatNumber        String?  @map("vat_number")
-  vatValidated     Boolean? @default(false) @map("vat_validated")
-
-  // Relations
-  shop    Shop?
-  orders  Order[]
-  reviews Review[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  notifications Notification[]
-  tickets       Ticket[]
-  ticketReplies TicketReply[]
-  wishlist      Wishlist?
-  sellerFeedbacks SellerFeedback[]
-  sentSwapProposals    SwapProposal[] @relation("SwapProposalSender")
-  receivedSwapProposals SwapProposal[] @relation("SwapProposalRecipient")
+  id                    String           @id
+  email                 String           @unique
+  role                  Role             @default(BUYER)
+  name                  String?
+  image                 String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  ecoPoints             Int              @default(0)
+  escrowBalance         Int              @default(0)
+  totalCo2Saved         Float            @default(0)
+  lastLoginDate         DateTime?
+  referredBy            String?
+  lastShareDate         DateTime?        @db.DateTime(0)
+  stripeCustomerId      String?          @map("stripe_customer_id") @db.VarChar(255)
+  billingName           String?          @map("billing_name") @db.VarChar(255)
+  billingAddress        String?          @map("billing_address") @db.VarChar(255)
+  billingCity           String?          @map("billing_city") @db.VarChar(255)
+  billingPostalCode     String?          @map("billing_postal_code") @db.VarChar(20)
+  billingCountry        String?          @default("SE") @map("billing_country") @db.VarChar(2)
+  businessType          String?          @default("individual") @map("business_type") @db.VarChar(20)
+  vatNumber             String?          @map("vat_number") @db.VarChar(50)
+  vatValidated          Int?             @default(0) @map("vat_validated") @db.TinyInt
+  notifications         Notification[]
+  orders                Order[]
+  reviews               Review[]
+  sellerFeedbacks       SellerFeedback[]
+  shop                  Shop?
+  shopFollows              ShopFollow[]
+  sentSwapProposals     SwapProposal[]   @relation("SwapProposalSender")
+  receivedSwapProposals SwapProposal[]   @relation("SwapProposalRecipient")
+  tickets               Ticket[]
+  ticketReplies         TicketReply[]
+  wishlist              Wishlist?
 }
 
 model Notification {
   id        String           @id @default(cuid())
   userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
   type      NotificationType @default(INFO)
   isRead    Boolean          @default(false)
-  link      String? // Optional link to related resource (e.g., /dashboard/orders/123)
+  link      String?
   createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-enum NotificationType {
-  INFO
-  SUCCESS
-  WARNING
-  ERROR
-  ORDER
-  SWAP
-}
-
 model Shop {
-  id            String  @id @default(cuid())
-  name          String
-  description   String?
-  logo          String?
-  coverImage    String?
-  ecoPoints     Int     @default(0)
-  totalCo2Saved Float   @default(0.0)
-
-  sellerType         SellerType @default(PRIVATE)
-  organizationNumber String?
-
-  ownerId String @unique
-  owner   User   @relation(fields: [ownerId], references: [id])
-
-  products Product[]
-
-  // PostNord Partner Integration
-  postnordCustomerNumber String? // Each seller's PostNord customer number
-
-  // Payout method fields
-  bankName        String?
-  accountHolder   String?
-  clearingNumber  String?
-  accountNumber   String?
-  swiftIban       String?
-
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  productViews ProductView[]
-
-  status  ShopStatus @default(PENDING)
-  payouts Payout[]
+  id                           String                   @id @default(cuid())
+  name                         String
+  description                  String?
+  logo                         String?
+  coverImage                   String?
+  ownerId                      String                   @unique
+  postnordCustomerNumber       String?
+  bankName                     String?                  @db.VarChar(255)
+  accountHolder                String?                  @db.VarChar(255)
+  clearingNumber               String?                  @db.VarChar(50)
+  accountNumber                String?                  @db.VarChar(100)
+  swiftIban                    String?                  @db.VarChar(100)
+  createdAt                    DateTime                 @default(now())
+  updatedAt                    DateTime                 @updatedAt
+  status                       ShopStatus               @default(PENDING)
+  ecoPoints                    Int                      @default(0)
+  totalCo2Saved                Float                    @default(0)
+  organizationNumber           String?
+  sellerType                   SellerType               @default(PRIVATE)
+  legalName                    String?
+  website                      String?
+  address                      String?
+  postalCode                   String?
+  city                         String?
+  categoryFocus                Json?
+  returnPolicy                 String?                  @db.Text
+  verified                     Boolean                  @default(false)
+  verifiedAt                   DateTime?
+  verificationStatus           ShopVerificationStatus  @default(NOT_STARTED)
+  verificationMethod           ShopVerificationMethod?
+  verificationSubmittedAt      DateTime?
+  verificationReviewedAt       DateTime?
+  verificationReviewedBy       String?
+  verificationRejectionReason  String?                  @db.Text
+  businessRegistrationVerified Boolean                  @default(false)
+  addressVerified              Boolean                  @default(false)
+  managerIdentityVerified      Boolean                  @default(false)
+  returnPolicyApproved         Boolean                  @default(false)
+  payouts                      Payout[]
+  products                     Product[]
+  productViews                 ProductView[]
+  owner                        User                     @relation(fields: [ownerId], references: [id])
+  followers                     ShopFollow[]
 }
 
 model Category {
@@ -133,52 +112,46 @@ model Category {
 }
 
 model Product {
-  id          String           @id @default(cuid())
-  name        String
-  description String
-  price       Decimal          @db.Decimal(10, 2)
-  inventory   Int              @default(0)
-  images      Json             @default("[]") // Array of image URLs
-  status      ProductStatus    @default(ACTIVE)
-  condition   ProductCondition @default(NEW)
-  co2Saved    Float            @default(0.0)
-  weight      Float? // Product weight in kg
-  isFeatured  Boolean          @default(false)
+  id                  String                  @id @default(cuid())
+  name                String
+  description         String
+  price               Decimal                 @db.Decimal(10, 2)
+  inventory           Int                     @default(0)
+  images              Json
+  status              ProductStatus          @default(ACTIVE)
+  condition           ProductCondition        @default(NEW)
+  co2Saved            Float                   @default(0)
+  weight              Float?
+  isFeatured          Boolean                 @default(false)
+  shopId              String
+  categoryId          String
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  moderationStatus    ProductModerationStatus @default(APPROVED)
   aiRawResponse       Json?
   aiSuggestedPriceSek Int?
   aiAnalyzedAt        DateTime?
   attributes          Json?
+  orderItems          OrderItem[]
+  category            Category                @relation(fields: [categoryId], references: [id])
+  shop                Shop                    @relation(fields: [shopId], references: [id])
+  views               ProductView[]
+  reviews             Review[]
+  wishlistItems       WishlistItem[]
 
-  // Relations
-  shopId String
-  shop   Shop   @relation(fields: [shopId], references: [id])
+  swapProposals       SwapProposal[]
 
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
-
-  reviews    Review[]
-  orderItems OrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  views ProductView[]
-  swapProposals SwapProposal[]
-
-  moderationStatus ProductModerationStatus @default(APPROVED)
-  wishlistItems    WishlistItem[]
+  @@index([categoryId], map: "Product_categoryId_fkey")
+  @@index([shopId], map: "Product_shopId_fkey")
 }
 
 model ProductView {
-  id String @id @default(cuid())
-
+  id        String   @id @default(cuid())
   productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  shopId String
-  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
-
-  viewedAt DateTime @default(now())
+  shopId    String
+  viewedAt  DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([shopId])
@@ -186,15 +159,10 @@ model ProductView {
 }
 
 model Order {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  items  OrderItem[]
-  total  Decimal     @db.Decimal(10, 2)
-  status OrderStatus @default(PENDING)
-
-  // Shipping Information
+  id                   String      @id @default(cuid())
+  userId               String
+  total                Decimal     @db.Decimal(10, 2)
+  status               OrderStatus @default(PENDING)
   shippingName         String?
   shippingAddressLine1 String?
   shippingAddressLine2 String?
@@ -202,214 +170,137 @@ model Order {
   shippingState        String?
   shippingPostalCode   String?
   shippingCountry      String?
+  cancelledAt          DateTime?
+  cancellationReason   String?
+  refundId             String?
+  refundAmount         Decimal?    @db.Decimal(10, 2)
+  stripeChargeId       String?
+  processingFee        Decimal?    @db.Decimal(10, 2)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  feeGross             Decimal?    @db.Decimal(10, 2)
+  feeNet               Decimal?    @db.Decimal(10, 2)
+  feeVat               Decimal?    @db.Decimal(10, 2)
+  user                 User        @relation(fields: [userId], references: [id])
+  items                OrderItem[]
+  shipments            Shipment[]
 
-  // Cancellation & Refund Information
-  cancelledAt        DateTime?
-  cancellationReason String?
-  refundId           String? // Stripe refund ID
-  refundAmount       Decimal?  @db.Decimal(10, 2)
-  stripeChargeId     String? // For tracking refunds
-  processingFee      Decimal?  @db.Decimal(10, 2) // Legacy backend processing fee
-  
-  // Shield Fee & VAT Tracking
-  feeGross           Decimal?  @db.Decimal(10, 2) // Total Shield Fee paid by buyer
-  feeVat             Decimal?  @db.Decimal(10, 2) // VAT portion of the Shield Fee (20% of feeGross = 25% VAT rate)
-  feeNet             Decimal?  @db.Decimal(10, 2) // CircuCity net revenue (Gross - Stripe)
-
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  shipments Shipment[]
+  @@index([userId], map: "Order_userId_fkey")
 }
 
 model OrderItem {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id])
-
+  id        String  @id @default(cuid())
+  orderId   String
   productId String
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  co2Saved  Float   @default(0)
+  order     Order   @relation(fields: [orderId], references: [id])
   product   Product @relation(fields: [productId], references: [id])
 
-  quantity Int
-  price    Decimal @db.Decimal(10, 2) // Snapshot of price at purchase
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
 }
 
 model Review {
-  id      String  @id @default(cuid())
-  rating  Int     @default(5)
-  comment String?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
+  id        String   @id @default(cuid())
+  rating    Int      @default(5)
+  comment   String?
+  userId    String
   productId String
-  product   Product @relation(fields: [productId], references: [id])
-
   createdAt DateTime @default(now())
-}
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
-enum OrderStatus {
-  PENDING
-  PAID
-  SHIPPED
-  DELIVERED
-  CANCELLED
-  REFUNDED
-  PARTIALLY_REFUNDED
-  DISPUTED
-}
-
-enum ProductStatus {
-  ACTIVE
-  DRAFT
-  OUT_OF_STOCK
-  SOLD
-}
-
-enum ProductCondition {
-  NEW
-  LIKE_NEW
-  REFURBISHED
-  GOOD
-  FAIR
-  POOR
+  @@index([productId], map: "Review_productId_fkey")
+  @@index([userId], map: "Review_userId_fkey")
 }
 
 model Shipment {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id])
-
-  // PostNord Tracking Information
-  trackingNumber String  @unique
-  carrier        String  @default("PostNord")
-  serviceType    String? // e.g., "MyPack Home", "Parcel", etc.
-
-  // Shipment Details
-  status            ShipmentStatus @default(PENDING)
-  estimatedDelivery DateTime?
-  actualDelivery    DateTime?
-
-  // Sender Information (Shop/Warehouse)
-  senderName       String?
-  senderAddress    String?
-  senderCity       String?
-  senderPostalCode String?
-  senderCountry    String?
-
-  // Recipient Information (from Order)
+  id                  String          @id @default(cuid())
+  orderId             String
+  trackingNumber      String          @unique
+  carrier             String          @default("PostNord")
+  serviceType         String?
+  status              ShipmentStatus  @default(PENDING)
+  estimatedDelivery   DateTime?
+  actualDelivery      DateTime?
+  senderName          String?
+  senderAddress       String?
+  senderCity          String?
+  senderPostalCode    String?
+  senderCountry       String?
   recipientName       String
   recipientAddress    String
   recipientCity       String
   recipientPostalCode String
   recipientCountry    String
+  weight              Float?
+  length              Float?
+  width               Float?
+  height              Float?
+  postnordShipmentId  String?
+  labelUrl            String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  shipmondoShipmentId String?         @db.VarChar(255)
+  order               Order           @relation(fields: [orderId], references: [id])
+  trackingEvents      TrackingEvent[]
 
-  // Package Details
-  weight Float? // in kg
-  length Float? // in cm
-  width  Float? // in cm
-  height Float? // in cm
-
-  // Carrier-specific IDs
-  postnordShipmentId  String? // PostNord's internal ID
-  shipmondoShipmentId String? // Shipmondo's internal ID/label ID
-  labelUrl            String? // URL to shipping label PDF
-
-  // Tracking Events
-  trackingEvents TrackingEvent[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@index([orderId], map: "Shipment_orderId_fkey")
 }
 
 model TrackingEvent {
-  id         String   @id @default(cuid())
-  shipmentId String
-  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-
-  status      String // e.g., "In Transit", "Out for Delivery", "Delivered"
-  description String? // Detailed description of the event
-  location    String? // Location where event occurred
+  id          String   @id @default(cuid())
+  shipmentId  String
+  status      String
+  description String?
+  location    String?
   timestamp   DateTime
+  createdAt   DateTime @default(now())
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-}
-
-enum ShipmentStatus {
-  PENDING // Shipment created but not yet picked up
-  PICKED_UP // Package picked up by carrier
-  IN_TRANSIT // Package in transit
-  OUT_FOR_DELIVERY // Out for delivery
-  DELIVERED // Successfully delivered
-  FAILED_DELIVERY // Delivery attempt failed
-  RETURNED // Returned to sender
-  CANCELLED // Shipment cancelled
-}
-
-enum ShopStatus {
-  PENDING
-  ACTIVE
-  SUSPENDED
-  REJECTED
-}
-
-enum ProductModerationStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  @@index([shipmentId], map: "TrackingEvent_shipmentId_fkey")
 }
 
 model Payout {
   id          String       @id @default(cuid())
   shopId      String
-  shop        Shop         @relation(fields: [shopId], references: [id])
   amount      Decimal      @db.Decimal(10, 2)
   status      PayoutStatus @default(PENDING)
   createdAt   DateTime     @default(now())
   processedAt DateTime?
-}
+  shop        Shop         @relation(fields: [shopId], references: [id])
 
-enum PayoutStatus {
-  PENDING
-  PROCESSING
-  PAID
-  FAILED
+  @@index([shopId], map: "Payout_shopId_fkey")
 }
 
 model Ticket {
   id        String         @id @default(cuid())
   userId    String
-  user      User           @relation(fields: [userId], references: [id])
   subject   String
   message   String
   status    TicketStatus   @default(OPEN)
   priority  TicketPriority @default(MEDIUM)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id])
   replies   TicketReply[]
+
+  @@index([userId], map: "Ticket_userId_fkey")
 }
 
 model TicketReply {
   id        String   @id @default(cuid())
   ticketId  String
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
   message   String
   createdAt DateTime @default(now())
-}
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
-enum TicketStatus {
-  OPEN
-  IN_PROGRESS
-  RESOLVED
-  CLOSED
-}
-
-enum TicketPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
+  @@index([ticketId], map: "TicketReply_ticketId_fkey")
+  @@index([userId], map: "TicketReply_userId_fkey")
 }
 
 model AuditLog {
@@ -425,79 +316,82 @@ model AuditLog {
 model Wishlist {
   id        String         @id @default(cuid())
   userId    String         @unique
-  user      User           @relation(fields: [userId], references: [id])
-  items     WishlistItem[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id])
+  items     WishlistItem[]
 }
 
 model WishlistItem {
   id         String   @id @default(cuid())
   wishlistId String
-  wishlist   Wishlist @relation(fields: [wishlistId], references: [id])
   productId  String
-  product    Product  @relation(fields: [productId], references: [id])
   createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id])
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id])
+
+  @@unique([wishlistId, productId])
+  @@index([productId], map: "WishlistItem_productId_fkey")
 }
 
 model SwapProposal {
-  id           String   @id @default(cuid())
-  productId    String
-  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  swapProductId   String?
-  swapProductName String?
-  fromUserId   String
-  fromUser     User     @relation("SwapProposalSender", fields: [fromUserId], references: [id])
-  toUserId     String
-  toUser       User     @relation("SwapProposalRecipient", fields: [toUserId], references: [id])
-  amount       Int
-  message      String?
-  trackingInfo     String?
-  sellerAShipped   Boolean  @default(false)
-  sellerBShipped   Boolean  @default(false)
-  sellerATracking  String?
-  sellerBTracking  String?
-  status       String   @default("pending")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  completedAt      DateTime?
-  inspectionEndsAt DateTime?
-  disputeReason    String?
-  disputeEvidence  String?  @db.Text
+  id                String    @id @default(cuid())
+  productId         String
+  swapProductId     String?
+  swapProductName   String?   @db.VarChar(255)
+  fromUserId        String
+  toUserId          String
+  amount            Int
+  message           String?   @db.Text
+  trackingInfo      String?   @db.VarChar(500)
+  sellerAShipped    Boolean   @default(false)
+  sellerBShipped    Boolean   @default(false)
+  sellerATracking   String?   @db.VarChar(500)
+  sellerBTracking   String?   @db.VarChar(500)
+  status            String    @default("pending")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+  completedAt       DateTime?
+  inspectionEndsAt  DateTime?
+  disputeReason     String?   @db.VarChar(500)
+  disputeEvidence   String?   @db.Text
   disputeResolvedBy String?
-  swapCompletedAt  DateTime?
+  swapCompletedAt   DateTime?
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fromUser          User      @relation("SwapProposalSender", fields: [fromUserId], references: [id])
+  toUser            User      @relation("SwapProposalRecipient", fields: [toUserId], references: [id])
 
-  @@index([toUserId, status])
-  @@index([fromUserId])
+  @@index([fromUserId], map: "idx_fromUserId")
+  @@index([toUserId, status], map: "idx_toUserId_status")
 }
 
 model SellerFeedback {
   id            String   @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  feedbackType  String   // 'problem' or 'feature'
-  frictionPoint String?  // e.g., 'low-visibility', 'weak-analytics'
-  satisfaction  Json?    // e.g., { listing: 3, shipping: 2, payouts: 1 }
+  feedbackType  String
+  frictionPoint String?
+  satisfaction  Json?
   comment       String?  @db.Text
   isRead        Boolean  @default(false)
-  
   createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "SellerFeedback_userId_fkey")
 }
 
 model PlatformSettings {
-  id        String   @id @default(cuid())
-  section   String
-  key       String
-  value     String?  @db.Text
-  updatedBy String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(cuid()) @db.VarChar(36)
+  section   String    @db.VarChar(100)
+  key       String    @db.VarChar(100)
+  value     String?   @db.Text
+  updatedBy String?   @db.VarChar(36)
+  createdAt DateTime? @default(now()) @db.DateTime(0)
+  updatedAt DateTime? @default(now()) @updatedAt @db.DateTime(0)
 
-  @@unique([section, key], name: "section_key")
-  @@index([section], name: "section_idx")
+  @@unique([section, key], name: "section_key", map: "section_key")
+  @@index([section], map: "section_idx")
   @@map("PlatformSettings")
 }
-
 
 /// A short-lived hold on stock taken while a buyer is at the Stripe payment page.
 /// Availability is `Product.inventory` minus the sum of ACTIVE, unexpired rows here.
@@ -517,4 +411,222 @@ model CheckoutReservation {
 
   @@index([productId, status, expiresAt])
   @@index([reservationId])
+}
+
+model ShopFollow {
+  id        String   @id @default(cuid())
+  userId    String
+  shopId    String
+  createdAt DateTime @default(now())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId])
+  @@index([shopId])
+}
+
+model chat_history {
+  id           Int       @id @default(autoincrement())
+  session_id   String    @db.VarChar(128)
+  workspace_id String?
+  role         String    @db.VarChar(20)
+  content      String    @db.Text
+  created_at   DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([session_id], map: "idx_chat_history_session")
+  @@index([workspace_id], map: "idx_workspace")
+}
+
+model invoices {
+  id                     Int       @id @default(autoincrement())
+  tenant_id              String    @db.VarChar(255)
+  stripe_invoice_id      String?   @db.VarChar(255)
+  stripe_subscription_id String?   @db.VarChar(255)
+  amount                 Decimal?  @db.Decimal(10, 2)
+  currency               String?   @default("sek") @db.VarChar(3)
+  status                 String?   @db.VarChar(50)
+  invoice_url            String?   @db.Text
+  paid_at                DateTime? @db.DateTime(0)
+  created_at             DateTime? @default(now()) @db.DateTime(0)
+}
+
+model subscription_plans {
+  id              Int       @id @default(autoincrement())
+  name            String    @db.VarChar(100)
+  price_monthly   Decimal?  @default(0.00) @db.Decimal(10, 2)
+  price_yearly    Decimal?  @default(0.00) @db.Decimal(10, 2)
+  stripe_price_id String?   @db.VarChar(255)
+  max_documents   Int?      @default(10)
+  max_crawl_pages Int?      @default(50)
+  features        Json?
+  is_active       Boolean?  @default(true)
+  created_at      DateTime? @default(now()) @db.DateTime(0)
+}
+
+model tenant_allowed_origins {
+  id        Int    @id @default(autoincrement())
+  tenant_id String
+  origin    String @db.VarChar(500)
+
+  @@index([tenant_id], map: "tenant_id")
+}
+
+model tenants {
+  tenant_id        String    @id
+  name             String    @db.VarChar(255)
+  theme_color      String?   @default("#1e3a2f") @db.VarChar(50)
+  welcome_message  String?   @db.Text
+  widget_enabled   Boolean?  @default(true)
+  api_key_required Boolean?  @default(false)
+  widget_api_key   String?   @db.VarChar(255)
+  owner_user_id    String?
+  created_at       DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model workspace_payment_methods {
+  id                       Int       @id @default(autoincrement())
+  tenant_id                String    @db.VarChar(255)
+  stripe_payment_method_id String?   @db.VarChar(255)
+  stripe_customer_id       String?   @db.VarChar(255)
+  pm_type                  String?   @db.VarChar(50)
+  last4                    String?   @db.VarChar(10)
+  brand                    String?   @db.VarChar(50)
+  exp_month                Int?
+  exp_year                 Int?
+  is_default               Boolean?  @default(false)
+  created_at               DateTime? @default(now()) @db.DateTime(0)
+}
+
+model workspace_subscriptions {
+  id                     Int       @id @default(autoincrement())
+  tenant_id              String    @db.VarChar(255)
+  plan_id                Int?
+  stripe_subscription_id String?   @db.VarChar(255)
+  stripe_customer_id     String?   @db.VarChar(255)
+  status                 String?   @default("free") @db.VarChar(50)
+  current_period_start   DateTime? @db.DateTime(0)
+  current_period_end     DateTime? @db.DateTime(0)
+  created_at             DateTime? @default(now()) @db.DateTime(0)
+  updated_at             DateTime? @default(now()) @db.DateTime(0)
+
+  @@index([plan_id], map: "plan_id")
+}
+
+model workspaces {
+  id            String   @id
+  name          String   @db.VarChar(255)
+  api_key       String   @unique(map: "api_key") @db.VarChar(255)
+  owner_user_id String
+  website_url   String?  @db.VarChar(500)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum SellerType {
+  PRIVATE
+  BUSINESS
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  ORDER
+  SWAP
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  DISPUTED
+}
+
+enum ProductCondition {
+  NEW
+  LIKE_NEW
+  REFURBISHED
+  GOOD
+  FAIR
+  POOR
+}
+
+enum ShipmentStatus {
+  PENDING
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED_DELIVERY
+  RETURNED
+  CANCELLED
+}
+
+enum ShopStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum ProductModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  OUT_OF_STOCK
+  SOLD
+  ARCHIVED
+}
+
+enum ShopVerificationStatus {
+  NOT_STARTED
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum ShopVerificationMethod {
+  BANKID
+  MANUAL
+  CHARITY_REG
 }
