@@ -78,9 +78,11 @@ export async function getSystemHealthChecks(): Promise<HealthCheck[]> {
   });
 
   checks.push({
-    name: 'Email (Resend)',
-    status: process.env.RESEND_API_KEY ? 'healthy' : 'unconfigured',
-    detail: process.env.RESEND_API_KEY ? 'Transactional email configured' : 'Missing RESEND_API_KEY',
+    name: 'Email (SMTP)',
+    status: process.env.SMTP_HOST ? 'healthy' : 'unconfigured',
+    detail: process.env.SMTP_HOST
+      ? `Transactional email via ${process.env.SMTP_HOST}:${process.env.SMTP_PORT || '25'}`
+      : 'Missing SMTP_HOST',
   });
 
   return checks;

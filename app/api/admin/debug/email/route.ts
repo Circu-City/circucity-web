@@ -35,7 +35,7 @@ export async function GET(request: Request) {
                             <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
                                 <li><b>Environment:</b> Production (cPanel)</li>
                                 <li><b>Sender:</b> ${process.env.EMAIL_FROM || 'orders@circucity.com'}</li>
-                                <li><b>Protocol:</b> Resend / API</li>
+                                <li><b>Protocol:</b> SMTP (local mailcow relay)</li>
                                 <li><b>Timestamp:</b> ${new Date().toLocaleString()}</li>
                             </ul>
                         </div>

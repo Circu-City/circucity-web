@@ -1,12 +1,65 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
-const getResendClient = () => {
-  return process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+// Mail goes out through the mailcow/postfix instance on this box rather than a
+// third-party API. circucity.com already has working DKIM here -- rspamd signs every
+// outbound message -- so this needs no provider-side domain verification, which is
+// what was silently failing every send before (Resend held no verified domain).
+//
+// EMAIL_FROM must be an address that actually EXISTS in mailcow. orders@ is an alias
+// onto support@. Sending from an address with no mailbox or alias means bounces and
+// customer replies are rejected, which is how noreply@ double-bounced previously.
+const smtp = {
+  host: process.env.SMTP_HOST || '127.0.0.1',
+  port: parseInt(process.env.SMTP_PORT || '25', 10),
+  user: process.env.SMTP_USER || '',
+  pass: process.env.SMTP_PASS || '',
 };
 
 const getFromEmail = () => {
   return process.env.EMAIL_FROM ?? 'CircuCity <noreply@circucity.com>';
 };
+
+let transporter: Transporter | null = null;
+
+function getTransporter(): Transporter {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      // Implicit TLS is only for 465; on 25 nodemailer upgrades via STARTTLS if offered.
+      secure: smtp.port === 465,
+      auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+      // The local relay presents a self-signed certificate.
+      tls: { rejectUnauthorized: false },
+      pool: true,
+      maxConnections: 3,
+    });
+  }
+  return transporter;
+}
+
+/** Crude HTML -> text. A text/plain alternative measurably improves spam scoring. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|h[1-6]|li)>/gi, '\n')
+    .replace(/<li>/gi, '- ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .trim();
+}
 
 export interface SendEmailOptions {
   to: string;
@@ -15,53 +68,39 @@ export interface SendEmailOptions {
 }
 
 /**
- * Send a single email via Resend.
- * No-ops if RESEND_API_KEY is not set (e.g. local dev).
+ * Send a single email through the local SMTP relay.
+ * No-ops only if SMTP_HOST is explicitly blanked (e.g. local dev with no relay).
  */
 export async function sendEmail({ to, subject, html }: SendEmailOptions) {
-  const resend = getResendClient();
   const FROM = getFromEmail();
 
-  if (!resend) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Email] Skipping send (no RESEND_API_KEY):', { to, subject });
-    } else {
-      console.warn('[Email] Skipping send (no RESEND_API_KEY is set in environment):', { to, subject });
-    }
+  if (!smtp.host) {
+    console.warn('[Email] Skipping send (SMTP_HOST is empty):', { to, subject });
     return { success: true };
   }
 
-  // Warn if using the default onboarding address in production
-  if (FROM.includes('onboarding@resend.dev') && process.env.NODE_ENV === 'production') {
-    console.warn('[Email] ⚠️ WARNING: Using onboarding@resend.dev in production. Emails will ONLY be sent to the Resend account owner. Please verify your domain and set EMAIL_FROM.');
-  }
-
   try {
-    const { data, error } = await resend.emails.send({
+    const info = await getTransporter().sendMail({
       from: FROM,
-      to: [to],
+      to,
       subject,
       html,
+      text: htmlToText(html),
     });
-
-    if (error) {
-      console.error('[Email] ❌ Send failed:', {
-        to,
-        subject,
-        error: error.message || error,
-        details: error
-      });
-      throw error;
-    }
 
     console.log('[Email] ✅ Email sent successfully:', {
       to,
       subject,
-      id: data?.id
+      id: info.messageId,
+      accepted: info.accepted?.length ?? 0,
     });
     return { success: true };
   } catch (catchErr: any) {
-    console.error('[Email] ❌ Unexpected error during send:', catchErr?.message || catchErr);
+    console.error('[Email] ❌ Send failed:', {
+      to,
+      subject,
+      error: catchErr?.message || catchErr,
+    });
     throw catchErr;
   }
 }
